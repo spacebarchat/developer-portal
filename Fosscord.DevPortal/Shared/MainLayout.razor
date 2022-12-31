@@ -1,0 +1,59 @@
+﻿@inherits LayoutComponentBase
+@using Blazored.LocalStorage
+@using Fosscord.DevPortal.Classes
+@using Fosscord.DevPortal.Pages
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+
+
+<div class="page">
+    @if (RuntimeStorage.UserInfo is not null)
+    {
+        <div class="sidebar">
+            <NavMenu/>
+        </div>
+
+        <main>
+            <div class="top-row px-4">
+                Hello, @RuntimeStorage.UserInfo.Username#@RuntimeStorage.UserInfo.Discriminator!
+                <a href="https://docs.microsoft.com/aspnet/" target="_blank">Log out</a>
+            </div>
+
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
+    }
+    else
+    {
+        <div class="sidebar">
+            <NavMenu/>
+        </div>
+
+        <main>
+            <div class="top-row px-4">
+                Not logged in!
+            </div>
+
+            <article class="content px-4">
+                <Login></Login>
+            </article>
+        </main>
+    }
+</div>
+
+@code {
+
+    protected override Task OnInitializedAsync()
+    {
+        RuntimeStorage.AccessToken = await LocalStorage.GetItemAsStringAsync("fosscord.devportal.token");
+        Console.WriteLine("Token: {0}", RuntimeStorage.AccessToken);
+        if (RuntimeStorage.AccessToken is not null)
+        {
+            RuntimeStorage.UserInfo = await FetchUserInfo();
+            StateHasChanged();
+        }
+        return base.OnInitializedAsync();
+    }
+
+}
