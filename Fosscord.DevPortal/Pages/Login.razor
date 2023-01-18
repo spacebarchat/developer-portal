@@ -4,6 +4,7 @@
 @using Blazored.LocalStorage
 @using Fosscord.DevPortal.Classes
 @using Fosscord.DevPortal.Classes.Extensions
+@using Fosscord.DevPortal.Classes.Logic
 @inject NavigationManager NavigationManager
 @inject ILocalStorageService LocalStorage
 <h3>Login</h3>
@@ -25,7 +26,7 @@
 </div>
 
 @code {
-    private LoginData _loginData = new LoginData();
+    private LoginData _loginData = new();
     string? _errorMsg = null;
     protected override async Task OnInitializedAsync()
     {
@@ -33,44 +34,25 @@
         Console.WriteLine("Token: {0}", RuntimeStorage.AccessToken);
         if (RuntimeStorage.AccessToken is not null)
         {
-            RuntimeStorage.UserInfo = await FetchUserInfo();
+            RuntimeStorage.UserInfo = await SessionLogic.GetUserInfo();
             StateHasChanged();
         }
     }
 
-    private async Task<UserInfoResponse?> FetchUserInfo()
-    {
-        using HttpClient client = HttpClientExtensions.GetNewWithAuth();
-        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.BaseUri);
-        var resp = await client.GetAsync($"{uri.Scheme}://{uri.Host}:{uri.Port}/api/users/@me");
-        if (resp.IsSuccessStatusCode)
-        {
-            var userResp = await resp.Content.ReadFromJsonAsync<UserInfoResponse>();
-            StateHasChanged();
-            return userResp;
-        }
-        else
-        {
-            var error = await resp.Content.ReadFromJsonAsync<ErrorResponse>();
-            _errorMsg = error.ToString();
-            StateHasChanged();
-            return null;
-        }
-    }
-
-    private async Task DoLogin()
+   private async Task DoLogin()
     {
         using HttpClient client = new HttpClient();
-        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.BaseUri);
-        var resp = await client.PostAsJsonAsync($"{uri.Scheme}://{uri.Host}:{uri.Port}/api/auth/login", _loginData);
+        var resp = await client.PostAsJsonAsync($"{RuntimeStorage.AppSettings.ApiUrl}/auth/login", _loginData);
         if (resp.IsSuccessStatusCode)
         {
-            var tokenResponse = await resp.Content.ReadFromJsonAsync<TokenResponse>();
-            await LocalStorage.SetItemAsStringAsync("fosscord.devportal.token", tokenResponse.token);
-            RuntimeStorage.AccessToken = tokenResponse.token;
             _errorMsg = null;
-            RuntimeStorage.UserInfo = await FetchUserInfo();
+            var tokenResponse = await resp.Content.ReadFromJsonAsync<TokenResponse>();
+            RuntimeStorage.AccessToken = tokenResponse.token;
+            RuntimeStorage.UserInfo = await SessionLogic.GetUserInfo();
+            await RuntimeStorage.SaveToLocalStorage(LocalStorage);
             StateHasChanged();
+            
+            NavigationManager.NavigateTo(RuntimeStorage.AppSettings.AppUrl);
         }
         else
         {

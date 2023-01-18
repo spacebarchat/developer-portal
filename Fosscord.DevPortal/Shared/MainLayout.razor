@@ -2,6 +2,9 @@
 @using Blazored.LocalStorage
 @using Fosscord.DevPortal.Classes
 @using Fosscord.DevPortal.Pages
+@using System.Text.Json
+@using Fosscord.DevPortal.Classes.Logic
+@using System.Runtime.InteropServices
 @inject ILocalStorageService LocalStorage
 @inject NavigationManager NavigationManager
 
@@ -15,8 +18,10 @@
 
         <main>
             <div class="top-row px-4">
-                Hello, @RuntimeStorage.UserInfo.Username#@RuntimeStorage.UserInfo.Discriminator!
-                <a href="https://docs.microsoft.com/aspnet/" target="_blank">Log out</a>
+                <img src="@RuntimeStorage.UserInfo.AvatarUrl" alt="User avatar" style="width: 48px; height: 48px; border-radius: 50%; margin-right: 12px;">
+                @RuntimeStorage.UserInfo.Username#@RuntimeStorage.UserInfo.Discriminator
+                <a href="@NavigationManager.ToAbsoluteUri(NavigationManager.BaseUri)/accounts">Switch account</a>
+                <a onclick="@Logout" href="">Log out</a>
             </div>
 
             <article class="content px-4">
@@ -36,24 +41,76 @@
             </div>
 
             <article class="content px-4">
-                <Login></Login>
+                @if (appSettingsLoaded)
+                {
+                    <Login></Login>
+                }
+                else
+                {
+                    <p>Loading app settings...</p>
+                }
             </article>
         </main>
     }
 </div>
 
 @code {
+    bool appSettingsLoaded = false;
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
+        await RuntimeStorage.LoadFromLocalStorage(LocalStorage);
+        await FetchAppSettings();
+
         RuntimeStorage.AccessToken = await LocalStorage.GetItemAsStringAsync("fosscord.devportal.token");
         Console.WriteLine("Token: {0}", RuntimeStorage.AccessToken);
         if (RuntimeStorage.AccessToken is not null)
         {
-            RuntimeStorage.UserInfo = await FetchUserInfo();
+            RuntimeStorage.UserInfo = await SessionLogic.GetUserInfo();
+            if (!RuntimeStorage.AccessTokens.Contains(RuntimeStorage.AccessToken))
+            {
+                RuntimeStorage.AccessTokens.Add(RuntimeStorage.AccessToken);
+                await RuntimeStorage.SaveToLocalStorage(LocalStorage);
+            }
             StateHasChanged();
         }
-        return base.OnInitializedAsync();
+        else
+        {
+            appSettingsLoaded = true;
+        }
+        await base.OnInitializedAsync();
     }
 
+    private async Task FetchAppSettings()
+    {
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync(NavigationManager.BaseUri + "appsettings.json");
+        if (response.IsSuccessStatusCode)
+        {
+            RuntimeStorage.AppSettings = await response.Content.ReadFromJsonAsync<AppSettings>();
+            var uri = NavigationManager.ToAbsoluteUri(NavigationManager.BaseUri);
+            
+            if(RuntimeStorage.AppSettings.AppUrl is null)
+                RuntimeStorage.AppSettings.AppUrl = uri.ToString();
+            if(RuntimeStorage.AppSettings.BaseUrl is null)
+                RuntimeStorage.AppSettings.BaseUrl = $"{uri.Scheme}://{uri.Host}:{uri.Port}";
+            if (RuntimeStorage.AppSettings.ApiUrl is null)
+                RuntimeStorage.AppSettings.ApiUrl = $"{uri.Scheme}://{uri.Host}:{uri.Port}/api";
+            
+            Console.WriteLine("AppSettings: {0}", JsonSerializer.Serialize(RuntimeStorage.AppSettings, new JsonSerializerOptions {WriteIndented = true}));
+        }
+        else
+        {
+            Console.WriteLine("Failed to fetch appsettings.json");
+            Console.WriteLine(await response.Content.ReadAsStringAsync());
+        }
+    }
+
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("fosscord.devportal.token");
+        RuntimeStorage.AccessToken = null;
+        RuntimeStorage.UserInfo = null;
+        StateHasChanged();
+    }
 }

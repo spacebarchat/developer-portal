@@ -1,0 +1,50 @@
+@page "/accounts"
+@using Fosscord.DevPortal.Classes
+@using Fosscord.DevPortal.Classes.Logic
+@using Fosscord.DevPortal.Classes.ResponseTypes
+
+@inject NavigationManager NavigationManager
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+<h3>Accounts</h3>
+
+@foreach (var user in users)
+{
+    <div class="card">
+        <div class="card-body">
+            <img src="@user.AvatarUrl" alt="User avatar" style="width: 72px; height: 72px; border-radius: 50%; margin-right: 12px; vertical-align: text-bottom;" onerror="">
+            <div style="display: inline-block;">
+                <h5 class="card-title">@user.Username#@user.Discriminator</h5>
+                <h6 class="card-subtitle mb-2 text-muted">@user.Id</h6>
+                <button @onclick="()=>SwitchAccount(user.Token)" class="btn btn-primary">Switch account</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    List<UserInfoResponse> users = new();
+    CancellationTokenSource cts = new();
+    protected override async Task OnInitializedAsync()
+    {
+        users.Clear();
+        
+        Console.WriteLine($"Access tokens: {RuntimeStorage.AccessTokens.Count}");
+        foreach (var accessToken in RuntimeStorage.AccessTokens.Distinct())
+        {
+            if(cts.IsCancellationRequested) return;
+            var user = await SessionLogic.GetUserInfo(accessToken);
+            users.Add(user);
+            StateHasChanged();
+        }
+        await base.OnInitializedAsync();
+    }
+    private async Task SwitchAccount(string accessToken)
+    {
+        cts.Cancel();
+        RuntimeStorage.AccessToken = accessToken;
+        RuntimeStorage.UserInfo = await SessionLogic.GetUserInfo(accessToken);
+        await RuntimeStorage.SaveToLocalStorage(LocalStorage);
+        NavigationManager.NavigateTo(RuntimeStorage.AppSettings.AppUrl);
+    }
+}

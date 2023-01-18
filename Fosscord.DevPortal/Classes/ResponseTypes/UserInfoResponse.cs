@@ -93,4 +93,11 @@ public class UserInfoResponse
 
     [JsonPropertyName("extended_settings")]
     public string ExtendedSettings { get; set; }
+
+    public string AvatarUrl
+    {
+        get => $"{RuntimeStorage.AppSettings.BaseUrl}/avatars/{Id}/{Avatar}.png";
+    }
+
+    public string Token { get; set; }
 }

@@ -1,9 +1,11 @@
 ﻿@page "/"
+@using Fosscord.DevPortal.Classes
 <PageTitle>Index</PageTitle>
 
-<h1>Hello, !</h1>
+<h1>Hello, @RuntimeStorage.UserInfo.Username#@RuntimeStorage.UserInfo.Discriminator!</h1>
 
-Welcome to your new app.
+Welcome to the Fosscord DevPortal!
+
 
 <SurveyPrompt Title="How is Blazor working for you?"/>
 

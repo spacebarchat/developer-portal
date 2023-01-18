@@ -1,17 +1,31 @@
-﻿@page "/fetchdata"
+﻿@page "/applications"
 @using Fosscord.DevPortal.Classes.ResponseTypes
 @using Fosscord.DevPortal.Classes.Extensions
 @using Fosscord.DevPortal.Classes
+@using Fosscord.DevPortal.Classes.ResponseTypes
+@using Microsoft.AspNetCore.Components.Web
 @using System.Text.Json
-@inject HttpClient Http
 
-<PageTitle>Weather forecast</PageTitle>
+<PageTitle>Applications</PageTitle>
 
-<h1>Weather forecast</h1>
+<h1>Applications</h1>
 
-<p>This component demonstrates fetching data from the server.</p>
+<button class="btn btn-primary">Create application</button>
 
-
+@if (applications != null)
+{
+    @foreach (var app in applications)
+    {
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">@app.Name</h5>
+                <h6 class="card-subtitle mb-2 text-muted">@app.Id</h6>
+                <p class="card-text">@app.Description</p>
+                <a href="/app/" class="card-link">Edit</a>
+            </div>
+        </div>
+    }
+}
 
 @code {
     List<ApplicationResponse>? applications = null;

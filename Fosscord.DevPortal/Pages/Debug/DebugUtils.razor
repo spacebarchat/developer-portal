@@ -1,0 +1,96 @@
+@page "/DebugUtils"
+@using Fosscord.DevPortal.Classes
+@using Fosscord.DevPortal.Classes.ResponseTypes
+@using System.Net.Http.Headers
+@using System.Net.Security
+@using Blazored.LocalStorage
+@using Fosscord.DevPortal.Classes.Extensions
+@using Fosscord.DevPortal.Classes.Logic
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService LocalStorage
+<h3>DebugUtils</h3>
+
+<button onclick="@ClearData">Clear data</button>
+<button onclick="@CreateUsers">Create 100 users</button>
+@foreach (var s in _errorMsg.TakeLast(10))
+{
+    <p>@s</p>
+}
+
+@foreach (var s in _errorMsg)
+{
+    <p>@s</p>
+}
+
+@code {
+
+    List<string> _errorMsg = new();
+    List<string> statusLog = new();
+
+    private async Task ClearData()
+    {
+        await RuntimeStorage.SaveToLocalStorage(LocalStorage);
+        await LocalStorage.RemoveItemsAsync(new[]
+        {
+            "fosscord.devportal.token",
+            "fosscord.devportal.tokens",
+        });
+        NavigationManager.NavigateTo(RuntimeStorage.AppSettings.AppUrl + "/DebugUtils");
+    }
+
+    private async Task CreateUsers()
+    {
+        using HttpClient client = new HttpClient();
+        var avatars = (
+            await client.GetStringAsync($"{RuntimeStorage.AppSettings.AppUrl}/avatars.b64")
+            ).Split("\n");
+        
+        Random random = new();
+        for (int i = 0; i < 100; i++)
+        {
+            statusLog.Clear();
+            statusLog.Add($"Creating user {i + 1}/100");
+            var resp = await client.PostAsJsonAsync($"{RuntimeStorage.AppSettings.ApiUrl}/auth/register", new
+            {
+                email = random.Next() + "@gmail.com",
+                username = "Test user",
+                password = "testing password",
+                consent = true,
+                date_of_birth = "1971-05-05",
+            });
+            if (resp.IsSuccessStatusCode)
+            {
+                var tokenResponse = await resp.Content.ReadFromJsonAsync<TokenResponse>();
+                using var client2 = HttpClientExtensions.GetNewWithAuth(tokenResponse.token);
+                RuntimeStorage.AccessTokens.Add(tokenResponse.token);
+                resp = await client2.PatchAsJsonAsync($"{RuntimeStorage.AppSettings.ApiUrl}/users/@me", new
+                {
+                    avatar = "data:image/png;base64," + avatars[random.Next(avatars.Length)],
+                });
+                if (resp.IsSuccessStatusCode)
+                {
+                    _errorMsg.Add("Created user");
+                }
+                else
+                {
+                    _errorMsg.Add("Failed to update avatar! " + resp.StatusCode);
+                }
+                await RuntimeStorage.SaveToLocalStorage(LocalStorage);
+                StateHasChanged();
+            }
+            else
+            {
+                var error = await resp.Content.ReadFromJsonAsync<ErrorResponse>();
+                _errorMsg.Add(error.ToString());
+                StateHasChanged();
+            }
+        }
+    }
+
+
+    private class TokenResponse
+    {
+        public string token { get; set; }
+    }
+
+}
